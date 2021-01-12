@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/golang/crypto/ssh/terminal"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,7 +14,6 @@ import (
 	"strings"
 	"syscall"
 )
-import "github.com/golang/crypto/ssh/terminal"
 
 const ConfigFile string = "launcher_config.json"
 

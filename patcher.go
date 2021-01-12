@@ -6,7 +6,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/dustin/go-humanize"
+	"github.com/klauspost/compress/s2"
 	"github.com/vbauerster/mpb"
+	"github.com/vbauerster/mpb/decor"
+	"golang.org/x/crypto/blake2b"
 	"io"
 	"io/ioutil"
 	"log"
@@ -17,12 +20,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/klauspost/compress/s2"
-
-	"github.com/vbauerster/mpb/decor"
-
-	"golang.org/x/crypto/blake2b"
 )
 
 const NumCDNs = 5
