@@ -1,18 +1,17 @@
 package main
 
 import (
+	"BSWLauncher/util"
 	"encoding/json"
 	"fmt"
-	"github.com/golang/crypto/ssh/terminal"
+	"github.com/howeyc/gopass"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"os/exec"
 	"strings"
-	"syscall"
 )
 
 const ConfigFile string = "launcher_config.json"
@@ -23,25 +22,10 @@ type LauncherInfo struct {
 	Version    string `json:"version"`
 }
 
-func main() {
-	config := getLoginInfo()
-
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		log.Fatal("Could not setup cookie jar", err)
-	}
-	client := http.Client{Jar: jar}
-
-	token := fetchLoginToken(&client, config)
-	launcherInfo := fetchLauncherInfo(&client)
-
-	launch(config.Username, token, launcherInfo.GameServer, launcherInfo.GamePort)
-}
-
 func getLoginInfo() *Config {
 	config, err := loadConfig()
 	if err == nil {
-		if config.Password, err = decrypt(config.Password); err != nil {
+		if config.Password, err = util.Decrypt(config.Password); err != nil {
 			config = nil
 		}
 	}
@@ -54,19 +38,24 @@ func getLoginInfo() *Config {
 		if len(args) > 0 {
 			username, args = args[0], args[1:]
 		} else {
-			fmt.Print("Enter your username: ")
-			_, _ = fmt.Scanln(&username)
+			for username == "" {
+				log.Print("Enter your username: ")
+				_, _ = fmt.Scanln(&username)
+			}
 		}
 
 		if len(args) > 0 {
 			password, args = args[0], args[1:]
 		} else {
-			fmt.Print("Enter your password: ")
-			pwbytes, err := terminal.ReadPassword(int(syscall.Stdin))
-			if err == nil {
-				password = string(pwbytes)
+			for password == "" {
+				log.Print("Enter your password: ")
+				//pwbytes, err := terminal.ReadPassword(int(syscall.Stdin))
+				pwbytes, err := gopass.GetPasswdMasked()
+				if err == nil {
+					password = string(pwbytes)
+				}
+				println()
 			}
-			println()
 		}
 
 	}
@@ -76,7 +65,7 @@ func getLoginInfo() *Config {
 			Username: username,
 			Password: password,
 		}
-		fmt.Print("Would you like to save this information for next time [y / n]? ")
+		log.Print("Would you like to save this information for next time [y / n]? ")
 		if askForConfirmation() {
 			config.Save()
 		}
@@ -148,12 +137,11 @@ func fetchLauncherInfo(client *http.Client) *LauncherInfo {
 }
 
 func launch(username string, token string, server string, port int) {
-	println("Launching BSW...")
 	cmd := exec.Command("BurningSW.exe", "HID:"+username, "TOKEN:"+token, "CHCODE:11", "IP:"+server, fmt.Sprintf("PORT:%v", port))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		fmt.Println("Error: ", err)
+		log.Println("Error: ", err)
 	}
 	_ = cmd.Wait()
 }
@@ -180,7 +168,7 @@ func askForConfirmation() bool {
 	} else if containsString(nokayResponses, response) {
 		return false
 	} else {
-		fmt.Print("Please type yes or no and then press enter: ")
+		log.Print("Please type yes or no and then press enter: ")
 		return askForConfirmation()
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"BSWLauncher/util"
 	"encoding/json"
 	"io/ioutil"
 	"os"
@@ -23,7 +24,7 @@ func loadConfig() (*Config, error) {
 }
 
 func (conf Config) Save() {
-	pw, err := encrypt(conf.Password)
+	pw, err := util.Encrypt(conf.Password)
 	if err != nil {
 		panic(err)
 	}

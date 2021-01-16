@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"encoding/hex"
 	"fmt"
 	"github.com/dustin/go-humanize"
@@ -16,7 +17,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +27,7 @@ const DefaultForceDownload = false
 
 var installDirectory, _ = os.Getwd()
 var progressBarManager = mpb.New()
+var localVersionDB *VersionFile
 var onlineCDNs []int
 var onlineServers int
 
@@ -44,23 +45,6 @@ type VersionFile struct {
 	Files         []File
 }
 
-func main() {
-	if onlineCDNs, onlineServers = checkCDNStatus(); onlineServers == 0 {
-		log.Fatal("There are no download servers online. Message the BSW admins if there is no post in #news already.")
-	}
-
-	versionFile, err := fetchVersionFile()
-	if err != nil {
-		log.Fatal("Could not fetch the version file.")
-	}
-	fmt.Printf("Fetched version information for %v files.\n", versionFile.NumberOfFiles)
-
-	toDownload := verifyFiles(versionFile.Files)
-	fmt.Printf("Found %v files that need to be updated.\n", len(toDownload))
-
-	downloadFiles(toDownload, runtime.NumCPU())
-}
-
 func checkCDNStatus() ([]int, int) {
 	var online []int
 	for i := 0; i < NumCDNs; i++ {
@@ -75,17 +59,29 @@ func checkCDNStatus() ([]int, int) {
 	return online, len(online)
 }
 
-func fetchVersionFile() (*VersionFile, error) {
-	data, err := getFile(fmt.Sprintf("https://cdn%v.burningsw.to/version.bin", onlineCDNs[0]))
-	if err != nil {
-		return nil, err
+func fetchVersionFile(local bool) (*VersionFile, error) {
+	if local {
+		file, err := os.Open("version.bin")
+		if err != nil {
+			return nil, err
+		}
+		dec := gob.NewDecoder(file)
+		var versionFile VersionFile
+		err = dec.Decode(&versionFile)
+		return &versionFile, err
+	} else {
+		data, err := getFile(fmt.Sprintf("https://cdn%v.burningsw.to/version.bin", onlineCDNs[0]))
+		if err != nil {
+			return nil, err
+		}
+		for i := range data {
+			data[i] ^= byte(i%0xFF + 0x69)
+		}
+		return unmarshalVersionFile(bytes.NewBuffer(data)), nil
 	}
+}
 
-	for i := range data {
-		data[i] ^= byte(i%0xFF + 0x69)
-	}
-	buffer := bytes.NewBuffer(data)
-
+func unmarshalVersionFile(buffer *bytes.Buffer) *VersionFile {
 	versionFile := &VersionFile{}
 
 	_ = binary.Read(buffer, binary.LittleEndian, &versionFile.Padding)
@@ -111,7 +107,35 @@ func fetchVersionFile() (*VersionFile, error) {
 		_ = binary.Read(buffer, binary.LittleEndian, &file.LastModified)
 	}
 
-	return versionFile, nil
+	return versionFile
+}
+
+func diffVersionFile(cdn *VersionFile, local *VersionFile) []File {
+	var toDownload []File
+
+	for _, cdnFile := range cdn.Files {
+		localFile, index := local.findFileByName(cdnFile.Path)
+		if localFile == nil {
+			// need to download
+			log.Printf("File does not exist or is read only %v\n", cdnFile.Path)
+			toDownload = append(toDownload, cdnFile)
+		} else if f, err := os.Open(localFile.Path); err == nil {
+			if fi, err := f.Stat(); err == nil && fi.Mode() != os.FileMode(0444) && fi.ModTime().Unix() != localFile.LastModified {
+				// Modified local file without read-only permission, update
+				log.Printf("Different mod time %s = %v != %v\n", cdnFile.Path, localFile.LastModified, fi.ModTime().Unix())
+				local.Files = removeFile(local.Files, index)
+				toDownload = append(toDownload, cdnFile)
+			}
+		} else if localFile.Hash != cdnFile.Hash {
+			// need up update
+			log.Printf("Different file hash %s = %v != %v\n", cdnFile.Path, localFile.Hash, cdnFile.Hash)
+			local.Files = removeFile(local.Files, index)
+			toDownload = append(toDownload, cdnFile)
+		}
+	}
+	local.NumberOfFiles = uint32(len(local.Files))
+
+	return toDownload
 }
 
 func verifyFiles(files []File) []File {
@@ -121,7 +145,7 @@ func verifyFiles(files []File) []File {
 		fileName := file.Path
 
 		hasher, _ := blake2b.New256(nil)
-		fmt.Print("Checking ", fileName, ": ")
+		fmt.Printf("Checking %s: ", fileName)
 		localFile, err := os.Open(filepath.Join(installDirectory, fileName))
 
 		if err != nil {
@@ -129,29 +153,38 @@ func verifyFiles(files []File) []File {
 			toDownload = append(toDownload, file)
 			continue
 		}
-		fi, err := localFile.Stat()
-		if err == nil && fi.Mode() == os.FileMode(0444) {
-			println("File is custom (read-only), skipping.")
-			continue
-		}
+
 		if _, err := io.Copy(hasher, localFile); err != nil {
 			println("Need to download.")
 			toDownload = append(toDownload, file)
 			continue
 		}
-		_ = localFile.Close()
 
 		hashBytes := hasher.Sum(nil)
 		hash := hex.EncodeToString(hashBytes[:])
 
+		localVersionDB.Files = append(localVersionDB.Files, File{
+			Path:         fileName,
+			Hash:         hash,
+			LastModified: file.LastModified,
+		})
+
+		fi, err := localFile.Stat()
+		if err == nil && fi.Mode() == os.FileMode(0444) {
+			println("File is custom (read-only), skipping.")
+			continue
+		}
+		localFile.Close()
+
 		if hash != file.Hash {
 			println("Need to download.")
 			toDownload = append(toDownload, file)
-		} else {
-			lm := time.Unix(file.LastModified, 0)
-			err = os.Chtimes(file.Path, lm, lm)
-			println("OK.")
+			continue
 		}
+
+		lm := time.Unix(file.LastModified, 0)
+		err = os.Chtimes(file.Path, lm, lm)
+		println("OK.")
 	}
 
 	return toDownload
@@ -190,10 +223,14 @@ func worker(id int, jobs <-chan File, wg *sync.WaitGroup) {
 					break
 				}
 				// force download fresh
-				log.Print(err)
-				println(" (" + formattedUrl + "), Retrying")
+				log.Println(err, " (", formattedUrl, "), Retrying.")
 				force = true
 				continue
+			} else {
+				localVersionDB.Files = append(localVersionDB.Files, j)
+				if err := localVersionDB.save(); err != nil {
+					log.Fatal(err)
+				}
 			}
 			break
 		}
@@ -211,7 +248,7 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 	x, dlerr := http.NewRequest("GET", url, nil)
 	if dlerr != nil {
 		log.Fatal(dlerr)
-		return err
+		return dlerr
 	}
 
 	if !force && err == nil {
@@ -302,4 +339,29 @@ func getFile(path string) ([]byte, error) {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	return body, err
+}
+
+func (versionFile *VersionFile) save() error {
+	versionFile.NumberOfFiles = uint32(len(versionFile.Files))
+	if out, err := os.OpenFile("version.bin", os.O_CREATE|os.O_WRONLY, 0777); err != nil {
+		return err
+	} else {
+		enc := gob.NewEncoder(out)
+		return enc.Encode(versionFile)
+	}
+}
+
+func (versionFile *VersionFile) findFileByName(path string) (*File, int) {
+	for i, f := range versionFile.Files {
+		if f.Path == path {
+			return &f, i
+		}
+	}
+
+	return nil, -1
+}
+
+func removeFile(s []File, i int) []File {
+	s[len(s)-1], s[i] = s[i], s[len(s)-1]
+	return s[:len(s)-1]
 }

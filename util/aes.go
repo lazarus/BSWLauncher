@@ -1,4 +1,4 @@
-package main
+package util
 
 import (
 	"bytes"
@@ -31,7 +31,7 @@ func getKeyBytes() []byte {
 
 	return nil
 }
-func encrypt(stringToEncrypt string) (encryptedString string, err error) {
+func Encrypt(stringToEncrypt string) (encryptedString string, err error) {
 
 	//Since the key is in string, we need to convert decode it to bytes
 	key := md5.Sum(getKeyBytes())
@@ -62,7 +62,7 @@ func encrypt(stringToEncrypt string) (encryptedString string, err error) {
 	return fmt.Sprintf("%x", ciphertext), nil
 }
 
-func decrypt(encryptedString string) (decryptedString string, err error) {
+func Decrypt(encryptedString string) (decryptedString string, err error) {
 
 	key := md5.Sum(getKeyBytes())
 	enc, _ := hex.DecodeString(encryptedString)
