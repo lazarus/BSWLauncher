@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/cookiejar"
@@ -15,16 +16,25 @@ const (
 )
 
 func main() {
+	// Catch Error/Panic
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Print("Press 'Enter' to continue...")
+			_, _ = fmt.Scanln()
+			os.Exit(1)
+		}
+	}()
+
 	// Patcher
 	log.Println("Checking download server status")
 	if onlineCDNs, onlineServers = checkCDNStatus(); onlineServers == 0 {
-		log.Fatal("There are no download servers online. Message the BSW admins if there is no post in #news already.")
+		log.Panic("There are no download servers online. Message the BSW admins if there is no post in #news already.")
 	}
 
 	log.Println("Fetching version file")
 	cdnFile, err := fetchVersionFile(CDN)
 	if err != nil {
-		log.Fatal("Could not fetch remote version file", err)
+		log.Panic("Could not fetch remote version file", err)
 	}
 	localVersionDB, err = fetchVersionFile(LOCAL)
 
@@ -33,7 +43,7 @@ func main() {
 		localVersionDB = &VersionFile{}
 		toDownload = verifyFiles(cdnFile.Files)
 		if err = localVersionDB.save(); err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 	} else {
 		toDownload = diffVersionFile(cdnFile, localVersionDB)
@@ -61,7 +71,7 @@ func main() {
 
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		log.Fatal("Could not setup cookie jar", err)
+		log.Panic("Could not setup cookie jar", err)
 	}
 	client := http.Client{Jar: jar}
 

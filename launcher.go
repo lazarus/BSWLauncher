@@ -72,7 +72,7 @@ func getLoginInfo() *Config {
 	}
 
 	if config.Username == "" || config.Password == "" {
-		log.Fatal("Please enter a username and a password.")
+		log.Panic("Please enter a username and a password.")
 	}
 
 	return config
@@ -85,33 +85,37 @@ func fetchLoginToken(client *http.Client, config *Config) string {
 
 	req, err := http.NewRequest("POST", "https://burningsw.to/login", strings.NewReader(form.Encode()))
 	if err != nil {
-		log.Fatal("Error creating request", err)
+		log.Panic("Error creating request", err)
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatal("Could not send login request", err)
+		log.Panic("Could not send login request", err)
 	}
 	resp.Body.Close()
 
 	req, err = http.NewRequest("POST", "https://burningsw.to/api/generate_token", nil)
 	if err != nil {
-		log.Fatal("Error posting to login api", err)
+		log.Panic("Error posting to login api", err)
 	}
 
 	resp, err = client.Do(req)
 	if err != nil {
-		log.Fatal("Error getting login token", err)
+		log.Panic("Error getting login token", err)
 	}
 	defer resp.Body.Close()
 
 	res, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal("Could not read token response", err)
+		log.Panic("Could not read token response", err)
 	}
-	token := strings.Split(string(res), "&")[0]
+	tokenA := strings.Split(string(res), "&")
+	token := tokenA[0]
+	if len(tokenA) != 2 || token == "" {
+		log.Panic("Invalid username or password, or your account has not been activated (check your email).")
+	}
 
 	return token
 }
@@ -119,18 +123,18 @@ func fetchLoginToken(client *http.Client, config *Config) string {
 func fetchLauncherInfo(client *http.Client) *LauncherInfo {
 	resp, err := client.Get("https://launcher.burningsw.to/info.json")
 	if err != nil {
-		log.Fatal("Could not get launcher info", err)
+		log.Panic("Could not get launcher info", err)
 	}
 	defer resp.Body.Close()
 	body, readErr := ioutil.ReadAll(resp.Body)
 	if readErr != nil {
-		log.Fatal("Could not read launcher info", err)
+		log.Panic("Could not read launcher info", err)
 	}
 
 	launcherInfo := &LauncherInfo{}
 	err = json.Unmarshal(body, launcherInfo)
 	if err != nil {
-		log.Fatal("Could not unmarshall launcher info", err)
+		log.Panic("Could not unmarshall launcher info", err)
 	}
 
 	return launcherInfo
@@ -159,7 +163,7 @@ func askForConfirmation() bool {
 	var response string
 	_, err := fmt.Scanln(&response)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	okayResponses := []string{"y", "Y", "yes", "Yes", "YES"}
 	nokayResponses := []string{"n", "N", "no", "No", "NO"}

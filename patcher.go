@@ -229,7 +229,7 @@ func worker(id int, jobs <-chan File, wg *sync.WaitGroup) {
 			} else {
 				localVersionDB.Files = append(localVersionDB.Files, j)
 				if err := localVersionDB.save(); err != nil {
-					log.Fatal(err)
+					log.Panic(err)
 				}
 			}
 			break
@@ -247,7 +247,7 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 	var out *os.File
 	x, dlerr := http.NewRequest("GET", url, nil)
 	if dlerr != nil {
-		log.Fatal(dlerr)
+		log.Panic(dlerr)
 		return dlerr
 	}
 
@@ -299,7 +299,7 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 		bar.IncrInt64(currPosition)
 	}
 	if _, err = io.Copy(out, proxyReader); err != nil {
-		//log.Fatal(err)
+		//log.Panic(err)
 		return err
 	}
 	defer proxyReader.Close() // Close file handles on exit
@@ -307,14 +307,14 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 
 	decompress, err := os.Create(filename)
 	if err != nil {
-		//log.Fatal(err)
+		//log.Panic(err)
 		return err
 	}
 
 	_ = out.Close()
 	out, err = os.Open(filename + ".tmp") // reopen for reading
 	if err != nil {
-		//log.Fatal(err)
+		//log.Panic(err)
 		return err
 	}
 
