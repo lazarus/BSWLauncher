@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"os"
-	"os/exec"
 	"runtime"
 )
 
@@ -46,6 +45,7 @@ func main() {
 			log.Panic(err)
 		}
 	} else {
+		log.Println("Diff version file")
 		toDownload = diffVersionFile(cdnFile, localVersionDB)
 	}
 	log.Printf("Fetched version information for %v/%v files.\n", localVersionDB.NumberOfFiles, cdnFile.NumberOfFiles)
@@ -62,9 +62,9 @@ func main() {
 		toDownload = verifyFiles(cdnFile.Files) // Verify manually and when download is done
 	}
 
-	cmd := exec.Command("cmd", "/c", "cls") //Windows example, its tested
-	cmd.Stdout = os.Stdout
-	_ = cmd.Run()
+	//cmd := exec.Command("cmd", "/c", "cls") //Windows example, its tested
+	//cmd.Stdout = os.Stdout
+	//_ = cmd.Run()
 
 	// Launcher
 	config := getLoginInfo()

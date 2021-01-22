@@ -61,6 +61,7 @@ func checkCDNStatus() ([]int, int) {
 
 func fetchVersionFile(local bool) (*VersionFile, error) {
 	if local {
+		log.Println("Loading version file from local storage.")
 		file, err := os.Open("version.bin")
 		if err != nil {
 			return nil, err
@@ -70,6 +71,7 @@ func fetchVersionFile(local bool) (*VersionFile, error) {
 		err = dec.Decode(&versionFile)
 		return &versionFile, err
 	} else {
+		log.Println("Loading version file from remote cdn.")
 		data, err := getFile(fmt.Sprintf("https://cdn%v.burningsw.to/version.bin", onlineCDNs[0]))
 		if err != nil {
 			return nil, err
@@ -120,17 +122,22 @@ func diffVersionFile(cdn *VersionFile, local *VersionFile) []File {
 			log.Printf("File does not exist or is read only %v\n", cdnFile.Path)
 			toDownload = append(toDownload, cdnFile)
 		} else if f, err := os.Open(localFile.Path); err == nil {
-			if fi, err := f.Stat(); err == nil && fi.Mode() != os.FileMode(0444) && fi.ModTime().Unix() != localFile.LastModified {
+			if fi, err := f.Stat(); err == nil && fi.Mode() == os.FileMode(0444) {
+				log.Println(cdnFile.Path, "file is read only")
+				continue
+			} else if err == nil && fi.ModTime().Unix() != localFile.LastModified {
 				// Modified local file without read-only permission, update
 				log.Printf("Different mod time %s = %v != %v\n", cdnFile.Path, localFile.LastModified, fi.ModTime().Unix())
 				local.Files = removeFile(local.Files, index)
 				toDownload = append(toDownload, cdnFile)
+			} else if localFile.Hash != cdnFile.Hash {
+				// need up update
+				log.Printf("Different file hash %s = %v != %v\n", cdnFile.Path, localFile.Hash, cdnFile.Hash)
+				local.Files = removeFile(local.Files, index)
+				toDownload = append(toDownload, cdnFile)
+			} else {
+				//log.Println("ok")
 			}
-		} else if localFile.Hash != cdnFile.Hash {
-			// need up update
-			log.Printf("Different file hash %s = %v != %v\n", cdnFile.Path, localFile.Hash, cdnFile.Hash)
-			local.Files = removeFile(local.Files, index)
-			toDownload = append(toDownload, cdnFile)
 		}
 	}
 	local.NumberOfFiles = uint32(len(local.Files))
