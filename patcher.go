@@ -150,27 +150,22 @@ func verifyFiles(files []File) []File {
 	var toDownload []File
 
 	for _, file := range files {
+		fmt.Printf("Checking %s: ", file.Path)
+
 		fileName := file.Path
-
-		h, _ := blake2b.New256(nil)
-		fmt.Printf("Checking %s: ", fileName)
 		localFile, err := os.Open(filepath.Join(installDirectory, fileName))
-
 		if err != nil {
 			println("Need to download.")
 			toDownload = append(toDownload, file)
 			continue
 		}
 
-		if _, err := io.Copy(h, localFile); err != nil {
+		hash, err := hashFile(localFile)
+		if err != nil {
 			println("Need to download.")
 			toDownload = append(toDownload, file)
 			continue
 		}
-
-		hashBytes := h.Sum(nil)
-		hash := hex.EncodeToString(hashBytes[:])
-
 		localVersionDB.Files = append(localVersionDB.Files, File{
 			Path:         fileName,
 			Hash:         hash,
@@ -196,6 +191,17 @@ func verifyFiles(files []File) []File {
 	}
 
 	return toDownload
+}
+
+func hashFile(file *os.File) (string, error) {
+	h, _ := blake2b.New256(nil)
+
+	if _, err := io.Copy(h, file); err != nil {
+		return "", err
+	}
+
+	hashBytes := h.Sum(nil)
+	return hex.EncodeToString(hashBytes[:]), nil
 }
 
 func downloadFiles(toDownload []File, numWorkers int) {
