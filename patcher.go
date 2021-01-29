@@ -26,7 +26,7 @@ const NumCDNs = 5
 const DefaultForceDownload = false
 
 var installDirectory, _ = os.Getwd()
-var progressBarManager = mpb.New()
+var progressBarManager *mpb.Progress
 var localVersionDB *VersionFile
 var onlineCDNs []int
 var onlineServers int
@@ -198,6 +198,7 @@ func verifyFiles(files []File) []File {
 }
 
 func downloadFiles(toDownload []File, numWorkers int) {
+	progressBarManager = mpb.New()
 	var wg sync.WaitGroup
 	wg.Add(len(toDownload))
 
@@ -214,6 +215,7 @@ func downloadFiles(toDownload []File, numWorkers int) {
 	defer close(jobs)
 
 	wg.Wait()
+	progressBarManager.Wait()
 }
 
 func worker(id int, jobs <-chan File, wg *sync.WaitGroup) {

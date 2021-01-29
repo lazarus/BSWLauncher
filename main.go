@@ -57,7 +57,6 @@ func main() {
 		log.Printf("Found %v files that need to be updated.\n", len(toDownload))
 
 		downloadFiles(toDownload, runtime.NumCPU())
-		progressBarManager.Wait()
 
 		toDownload = verifyFiles(cdnFile.Files) // Verify manually and when download is done
 	}
