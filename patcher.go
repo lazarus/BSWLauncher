@@ -226,8 +226,9 @@ func worker(id int, jobs <-chan File, wg *sync.WaitGroup) {
 		for {
 			err := downloadFile(j, formattedUrl, wg, force)
 			if err != nil {
+				log.Println(err)
 				if force {
-					println("Download for", formattedUrl, "failed again, check manually.")
+					log.Println("Download for %s failed again, check manually.", formattedUrl)
 					wg.Done()
 					break
 				}
@@ -273,6 +274,7 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 		//}
 		out, err = os.OpenFile(filename+".tmp", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 		if err != nil {
+			log.Println("[!] Unable to open %s.tmp", filename)
 			return err
 		}
 	} else {
@@ -283,6 +285,7 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 	client := &http.Client{}
 	resp, err := client.Do(x)
 	if err != nil {
+		log.Println("[!] Could not complete the request")
 		return err
 	}
 
@@ -316,18 +319,19 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 
 	decompress, err := os.Create(filename)
 	if err != nil {
-		//log.Panic(err)
+		log.Println("[!] Could not create file for decompression %s", filename)
 		return err
 	}
 
 	_ = out.Close()
 	out, err = os.Open(filename + ".tmp") // reopen for reading
 	if err != nil {
-		//log.Panic(err)
+		log.Println("[!] Could not open temp file for decompression %s.tmp", filename)
 		return err
 	}
 
 	if _, err = io.Copy(decompress, s2.NewReader(out)); err != nil { // Decompress the data using s2d
+		log.Println("[!] Could not decompress %s", filename)
 		return err
 	}
 	_ = out.Close()
