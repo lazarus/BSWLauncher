@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/gob"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/dustin/go-humanize"
 	"github.com/klauspost/compress/s2"
@@ -151,7 +152,7 @@ func verifyFiles(files []File) []File {
 	for _, file := range files {
 		fileName := file.Path
 
-		hasher, _ := blake2b.New256(nil)
+		h, _ := blake2b.New256(nil)
 		fmt.Printf("Checking %s: ", fileName)
 		localFile, err := os.Open(filepath.Join(installDirectory, fileName))
 
@@ -161,13 +162,13 @@ func verifyFiles(files []File) []File {
 			continue
 		}
 
-		if _, err := io.Copy(hasher, localFile); err != nil {
+		if _, err := io.Copy(h, localFile); err != nil {
 			println("Need to download.")
 			toDownload = append(toDownload, file)
 			continue
 		}
 
-		hashBytes := hasher.Sum(nil)
+		hashBytes := h.Sum(nil)
 		hash := hex.EncodeToString(hashBytes[:])
 
 		localVersionDB.Files = append(localVersionDB.Files, File{
@@ -228,7 +229,7 @@ func worker(id int, jobs <-chan File, wg *sync.WaitGroup) {
 			if err != nil {
 				log.Println(err)
 				if force {
-					log.Println("Download for %s failed again, check manually.", formattedUrl)
+					log.Printf("Download for %s failed again, check manually.\n", formattedUrl)
 					wg.Done()
 					break
 				}
@@ -252,19 +253,25 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 	// Create the file, but give it a tmp file extension, this means we won't overwrite a
 	// file until it's downloaded, but we'll remove the tmp extension once downloaded.
 	info, err := os.Stat(filename + ".tmp")
-
+	if os.IsNotExist(err) {
+		pathCheck := os.MkdirAll(filepath.Dir(filename), 0777)
+		if pathCheck != nil {
+			log.Printf("[!] Unable to MkdirAll: %s\n", filename)
+			return pathCheck
+		}
+	}
 	var currPosition int64
 	var out *os.File
-	x, dlerr := http.NewRequest("GET", url, nil)
-	if dlerr != nil {
-		log.Panic(dlerr)
-		return dlerr
+	x, downloadErr := http.NewRequest("GET", url, nil)
+	if downloadErr != nil {
+		log.Panic(downloadErr)
+		return downloadErr
 	}
 
-	if !force && err == nil {
+	if !force && err == nil && info != nil {
 		currPosition = info.Size()
 		/* DownloadNewestFileCheck
-		if info.ModTime().Unix() != file.LastModified { // Doesn't work because golang changes file modtime on write
+		if info.ModTime().Unix() != file.LastModified { // Doesn't work because golang changes file mtime on write
 			fmt.Printf("File %s modification time has changed, assuming new version (%v vs %v)\n", info.Name(), info.ModTime().Format("1/2/2006 3:04 PM"), time.Unix(file.LastModified, 0).Format("1/2/2006 3:04 PM"))
 			currPosition = 0
 		} else {
@@ -274,11 +281,15 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 		//}
 		out, err = os.OpenFile(filename+".tmp", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 		if err != nil {
-			log.Println("[!] Unable to open %s.tmp", filename)
+			log.Printf("[!] Unable to open %s.tmp: %s\n", filename, err.(*os.PathError).Error())
 			return err
 		}
 	} else {
 		out, err = os.Create(filename + ".tmp")
+		if err != nil {
+			log.Printf("[!] Unable to create %s.tmp: %s\n", filename, err.(*os.PathError).Error())
+			return err
+		}
 	}
 
 	// Get the data
@@ -287,6 +298,10 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 	if err != nil {
 		log.Println("[!] Could not complete the request")
 		return err
+	}
+	if resp.Body == nil {
+		log.Printf("[!] Request body is nil? Response status: %s\n", resp.Status)
+		return errors.New("request body is nil")
 	}
 
 	// Create our progress reporter and pass it to be used alongside our writer
@@ -310,8 +325,8 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 	if currPosition > 0 {
 		bar.IncrInt64(currPosition)
 	}
-	if _, err = io.Copy(out, proxyReader); err != nil {
-		//log.Panic(err)
+	if written, err := io.Copy(out, proxyReader); err != nil {
+		log.Printf("[!] Could not read download response %s (got %d bytes, expected %d)\n", filename, written, resp.ContentLength)
 		return err
 	}
 	defer proxyReader.Close() // Close file handles on exit
@@ -319,19 +334,19 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 
 	decompress, err := os.Create(filename)
 	if err != nil {
-		log.Println("[!] Could not create file for decompression %s", filename)
+		log.Printf("[!] Could not create file for decompression %s\n", filename)
 		return err
 	}
 
 	_ = out.Close()
 	out, err = os.Open(filename + ".tmp") // reopen for reading
 	if err != nil {
-		log.Println("[!] Could not open temp file for decompression %s.tmp", filename)
+		log.Printf("[!] Could not open temp file for decompression %s.tmp\n", filename)
 		return err
 	}
 
 	if _, err = io.Copy(decompress, s2.NewReader(out)); err != nil { // Decompress the data using s2d
-		log.Println("[!] Could not decompress %s", filename)
+		log.Printf("[!] Could not decompress %s\n", filename)
 		return err
 	}
 	_ = out.Close()

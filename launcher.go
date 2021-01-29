@@ -49,10 +49,10 @@ func getLoginInfo() *Config {
 		} else {
 			for password == "" {
 				log.Print("Enter your password: ")
-				//pwbytes, err := terminal.ReadPassword(int(syscall.Stdin))
-				pwbytes, err := gopass.GetPasswdMasked()
+				//passwordBytes, err := terminal.ReadPassword(int(syscall.Stdin))
+				passwordBytes, err := gopass.GetPasswdMasked()
 				if err == nil {
-					password = string(pwbytes)
+					password = string(passwordBytes)
 				}
 				println()
 			}
@@ -165,11 +165,11 @@ func askForConfirmation() bool {
 	if err != nil {
 		log.Panic(err)
 	}
-	okayResponses := []string{"y", "Y", "yes", "Yes", "YES"}
-	nokayResponses := []string{"n", "N", "no", "No", "NO"}
-	if containsString(okayResponses, response) {
+	yesResponses := []string{"y", "Y", "yes", "Yes", "YES"}
+	noResponses := []string{"n", "N", "no", "No", "NO"}
+	if containsString(yesResponses, response) {
 		return true
-	} else if containsString(nokayResponses, response) {
+	} else if containsString(noResponses, response) {
 		return false
 	} else {
 		log.Print("Please type yes or no and then press enter: ")
