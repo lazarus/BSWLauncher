@@ -39,7 +39,7 @@ func getLoginInfo() *Config {
 			username, args = args[0], args[1:]
 		} else {
 			for username == "" {
-				log.Print("Enter your username: ")
+				fmt.Print("Enter your username: ")
 				_, _ = fmt.Scanln(&username)
 			}
 		}
@@ -48,13 +48,13 @@ func getLoginInfo() *Config {
 			password, args = args[0], args[1:]
 		} else {
 			for password == "" {
-				log.Print("Enter your password: ")
+				fmt.Print("Enter your password: ")
 				//passwordBytes, err := terminal.ReadPassword(int(syscall.Stdin))
 				passwordBytes, err := gopass.GetPasswdMasked()
 				if err == nil {
 					password = string(passwordBytes)
 				}
-				println()
+				//println()
 			}
 		}
 
@@ -65,7 +65,7 @@ func getLoginInfo() *Config {
 			Username: username,
 			Password: password,
 		}
-		log.Print("Would you like to save this information for next time [y / n]? ")
+		fmt.Print("Would you like to save this information for next time [y / n]? ")
 		if askForConfirmation() {
 			config.Save()
 		}
