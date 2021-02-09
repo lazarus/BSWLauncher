@@ -7,6 +7,7 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -63,6 +64,9 @@ func Encrypt(stringToEncrypt string) (encryptedString string, err error) {
 }
 
 func Decrypt(encryptedString string) (decryptedString string, err error) {
+	if encryptedString == "" {
+		return "", errors.New("blank string")
+	}
 
 	key := md5.Sum(getKeyBytes())
 	enc, _ := hex.DecodeString(encryptedString)

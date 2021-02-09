@@ -114,6 +114,9 @@ func fetchLoginToken(client *http.Client, config *Config) string {
 	tokenA := strings.Split(string(res), "&")
 	token := tokenA[0]
 	if len(tokenA) != 2 || token == "" {
+		config.Username = ""
+		config.Password = ""
+		config.Save()
 		log.Panic("Invalid username or password, or your account has not been activated (check your email).")
 	}
 

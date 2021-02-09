@@ -3,6 +3,7 @@ package main
 import (
 	"BSWLauncher/util"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"os"
 )
@@ -20,6 +21,9 @@ func loadConfig() (*Config, error) {
 	}
 	decoder := json.NewDecoder(file)
 	err = decoder.Decode(&config)
+	if config.Username == "" || config.Password == "" {
+		return nil, errors.New("invalid username or password")
+	}
 	return config, err
 }
 
