@@ -31,6 +31,8 @@ var progressBarManager *mpb.Progress
 var localVersionDB *VersionFile
 var onlineCDNs []int
 var onlineServers int
+var downloadAttempts = make(map[string]int)
+var workerErr error
 
 type File struct {
 	PathLen      uint32
@@ -149,20 +151,21 @@ func diffVersionFile(cdn *VersionFile, local *VersionFile) []File {
 func verifyFiles(files []File) []File {
 	var toDownload []File
 
+	localVersionDB = &VersionFile{}
 	for _, file := range files {
 		fmt.Printf("Checking %s: ", file.Path)
 
 		fileName := file.Path
 		localFile, err := os.Open(filepath.Join(installDirectory, fileName))
 		if err != nil {
-			println("Need to download.")
+			println("Need to download, file does not exist.")
 			toDownload = append(toDownload, file)
 			continue
 		}
 
 		hash, err := hashFile(localFile)
 		if err != nil {
-			println("Need to download.")
+			println("Need to download, could not hash.")
 			toDownload = append(toDownload, file)
 			continue
 		}
@@ -180,7 +183,8 @@ func verifyFiles(files []File) []File {
 		localFile.Close()
 
 		if hash != file.Hash {
-			println("Need to download.")
+			println("Need to download, hash mismatch.")
+			//spew.Dump([]interface{}{hash, file.Hash})
 			toDownload = append(toDownload, file)
 			continue
 		}
@@ -188,6 +192,9 @@ func verifyFiles(files []File) []File {
 		lm := time.Unix(file.LastModified, 0)
 		err = os.Chtimes(file.Path, lm, lm)
 		println("OK.")
+	}
+	if err := localVersionDB.save(); err != nil {
+		log.Panic(err)
 	}
 
 	return toDownload
@@ -205,6 +212,11 @@ func hashFile(file *os.File) (string, error) {
 }
 
 func downloadFiles(toDownload []File, numWorkers int) {
+	if workerErr != nil { // Bad error management system to prevent infinite loop on incorrect cdn hash
+		log.Println(workerErr)
+		log.Panicln("Restart launcher and contact Austin#0008 if error persists.")
+	}
+
 	progressBarManager = mpb.New()
 	var wg sync.WaitGroup
 	wg.Add(len(toDownload))
@@ -224,7 +236,6 @@ func downloadFiles(toDownload []File, numWorkers int) {
 	wg.Wait()
 	progressBarManager.Wait()
 }
-
 func worker(id int, jobs <-chan File, wg *sync.WaitGroup) {
 	for j := range jobs {
 		formattedUrl := fmt.Sprintf("https://cdn%v.burningsw.to/%s", onlineCDNs[id%onlineServers], j.Path)
@@ -232,12 +243,14 @@ func worker(id int, jobs <-chan File, wg *sync.WaitGroup) {
 		force := DefaultForceDownload
 		for {
 			err := downloadFile(j, formattedUrl, wg, force)
+			downloadAttempts[j.Path]++
+			if downloadAttempts[j.Path] > 2 {
+				workerErr = errors.New(j.Path + " too many retries")
+			}
 			if err != nil {
 				log.Println(err)
 				if force {
-					log.Printf("Download for %s failed again, check manually.\n", formattedUrl)
-					wg.Done()
-					break
+					log.Printf("Download for %s failed again, restart launcher and see if that fixes issue.\n", formattedUrl)
 				}
 				// force download fresh
 				log.Println(err, " (", formattedUrl, "), Retrying.")
