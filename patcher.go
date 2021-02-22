@@ -23,14 +23,11 @@ import (
 	"time"
 )
 
-const NumCDNs = 5
 const DefaultForceDownload = false
 
 var installDirectory, _ = os.Getwd()
 var progressBarManager *mpb.Progress
 var localVersionDB *VersionFile
-var onlineCDNs []int
-var onlineServers int
 var downloadAttempts = make(map[string]int)
 var workerErr error
 
@@ -47,20 +44,6 @@ type VersionFile struct {
 	NumberOfFiles uint32
 	Files         []File
 }
-
-//func checkCDNStatus() ([]int, int) {
-//	var online []int
-//	for i := 0; i < NumCDNs; i++ {
-//		formattedUrl := fmt.Sprintf("https://cdn.burningsw.to/", i)
-//		resp, err := http.Head(formattedUrl)
-//		if err == nil {
-//			if resp.StatusCode == 200 {
-//				online = append(online, i)
-//			}
-//		}
-//	}
-//	return online, len(online)
-//}
 
 func checkCDNStatus() bool {
 	resp, err := http.Head("https://cdn.burningsw.to/version.bin")
@@ -85,7 +68,6 @@ func fetchVersionFile(local bool) (*VersionFile, error) {
 		return &versionFile, err
 	} else {
 		log.Println("Loading version file from remote cdn.")
-		//data, err := getFile(fmt.Sprintf("https://cdn%v.burningsw.to/version.bin", onlineCDNs[0]))
 		data, err := getFile("https://cdn.burningsw.to/version.bin")
 		if err != nil {
 			return nil, err
@@ -149,8 +131,6 @@ func diffVersionFile(cdn *VersionFile, local *VersionFile) []File {
 				log.Printf("Different file hash %s = %v != %v\n", cdnFile.Path, localFile.Hash, cdnFile.Hash)
 				local.Files = removeFile(local.Files, index)
 				toDownload = append(toDownload, cdnFile)
-			} else {
-				//log.Println("ok")
 			}
 		}
 	}
@@ -195,7 +175,6 @@ func verifyFiles(files []File) []File {
 
 		if hash != file.Hash {
 			println("Need to download, hash mismatch.")
-			//spew.Dump([]interface{}{hash, file.Hash})
 			toDownload = append(toDownload, file)
 			continue
 		}
@@ -235,7 +214,7 @@ func downloadFiles(toDownload []File, numWorkers int) {
 	jobs := make(chan File, len(toDownload))
 
 	for w := 0; w < numWorkers; w++ {
-		go worker(w, jobs, &wg)
+		go worker(jobs, &wg)
 	}
 
 	for _, file := range toDownload {
@@ -247,9 +226,8 @@ func downloadFiles(toDownload []File, numWorkers int) {
 	wg.Wait()
 	progressBarManager.Wait()
 }
-func worker(id int, jobs <-chan File, wg *sync.WaitGroup) {
+func worker(jobs <-chan File, wg *sync.WaitGroup) {
 	for j := range jobs {
-		//formattedUrl := fmt.Sprintf("https://cdn.burningsw.to/%s", onlineCDNs[id%onlineServers], j.Path)
 		formattedUrl := fmt.Sprintf("https://cdn.burningsw.to/%s", j.Path)
 		formattedUrl = strings.ReplaceAll(formattedUrl, "\\", "/")
 		force := DefaultForceDownload
@@ -301,15 +279,8 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 
 	if !force && err == nil && info != nil {
 		currPosition = info.Size()
-		/* DownloadNewestFileCheck
-		if info.ModTime().Unix() != file.LastModified { // Doesn't work because golang changes file mtime on write
-			fmt.Printf("File %s modification time has changed, assuming new version (%v vs %v)\n", info.Name(), info.ModTime().Format("1/2/2006 3:04 PM"), time.Unix(file.LastModified, 0).Format("1/2/2006 3:04 PM"))
-			currPosition = 0
-		} else {
-		*/
 		x.Header.Add("Range", fmt.Sprintf("bytes=%v-", currPosition))
 		fmt.Printf("Resuming %s from byte position %v.\n", filename, humanize.Bytes(uint64(currPosition)))
-		//}
 		out, err = os.OpenFile(filename+".tmp", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 		if err != nil {
 			log.Printf("[!] Unable to open %s.tmp: %s\n", filename, err.(*os.PathError).Error())

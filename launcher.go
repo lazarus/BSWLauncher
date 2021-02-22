@@ -49,12 +49,10 @@ func getLoginInfo() *Config {
 		} else {
 			for password == "" {
 				fmt.Print("Enter your password: ")
-				//passwordBytes, err := terminal.ReadPassword(int(syscall.Stdin))
 				passwordBytes, err := gopass.GetPasswdMasked()
 				if err == nil {
 					password = string(passwordBytes)
 				}
-				//println()
 			}
 		}
 
