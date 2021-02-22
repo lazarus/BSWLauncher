@@ -48,18 +48,28 @@ type VersionFile struct {
 	Files         []File
 }
 
-func checkCDNStatus() ([]int, int) {
-	var online []int
-	for i := 0; i < NumCDNs; i++ {
-		formattedUrl := fmt.Sprintf("https://cdn%v.burningsw.to/", i)
-		resp, err := http.Head(formattedUrl)
-		if err == nil {
-			if resp.StatusCode == 200 {
-				online = append(online, i)
-			}
+//func checkCDNStatus() ([]int, int) {
+//	var online []int
+//	for i := 0; i < NumCDNs; i++ {
+//		formattedUrl := fmt.Sprintf("https://cdn.burningsw.to/", i)
+//		resp, err := http.Head(formattedUrl)
+//		if err == nil {
+//			if resp.StatusCode == 200 {
+//				online = append(online, i)
+//			}
+//		}
+//	}
+//	return online, len(online)
+//}
+
+func checkCDNStatus() bool {
+	resp, err := http.Head("https://cdn.burningsw.to/version.bin")
+	if err == nil {
+		if resp.StatusCode == 200 {
+			return true
 		}
 	}
-	return online, len(online)
+	return false
 }
 
 func fetchVersionFile(local bool) (*VersionFile, error) {
@@ -75,7 +85,8 @@ func fetchVersionFile(local bool) (*VersionFile, error) {
 		return &versionFile, err
 	} else {
 		log.Println("Loading version file from remote cdn.")
-		data, err := getFile(fmt.Sprintf("https://cdn%v.burningsw.to/version.bin", onlineCDNs[0]))
+		//data, err := getFile(fmt.Sprintf("https://cdn%v.burningsw.to/version.bin", onlineCDNs[0]))
+		data, err := getFile("https://cdn.burningsw.to/version.bin")
 		if err != nil {
 			return nil, err
 		}
@@ -238,7 +249,8 @@ func downloadFiles(toDownload []File, numWorkers int) {
 }
 func worker(id int, jobs <-chan File, wg *sync.WaitGroup) {
 	for j := range jobs {
-		formattedUrl := fmt.Sprintf("https://cdn%v.burningsw.to/%s", onlineCDNs[id%onlineServers], j.Path)
+		//formattedUrl := fmt.Sprintf("https://cdn.burningsw.to/%s", onlineCDNs[id%onlineServers], j.Path)
+		formattedUrl := fmt.Sprintf("https://cdn.burningsw.to/%s", j.Path)
 		formattedUrl = strings.ReplaceAll(formattedUrl, "\\", "/")
 		force := DefaultForceDownload
 		for {

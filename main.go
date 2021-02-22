@@ -26,7 +26,10 @@ func main() {
 
 	// Patcher
 	log.Println("Checking download server status")
-	if onlineCDNs, onlineServers = checkCDNStatus(); onlineServers == 0 {
+	//if onlineCDNs, onlineServers = checkCDNStatus(); onlineServers == 0 {
+	//	log.Panic("There are no download servers online. Message the BSW admins if there is no post in #news already.")
+	//}
+	if !checkCDNStatus() {
 		log.Panic("There are no download servers online. Message the BSW admins if there is no post in #news already.")
 	}
 
