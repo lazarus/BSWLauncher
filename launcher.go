@@ -115,7 +115,11 @@ func fetchLoginToken(client *http.Client, config *Config) string {
 		config.Username = ""
 		config.Password = ""
 		config.Save()
-		log.Panic("Invalid username or password, or your account has not been activated (check your email).")
+		if len(res) > 0 {
+			log.Panic(string(res))
+		}
+		log.Panic("Login service is offline.")
+		//log.Panic("Invalid username or password, or your account has not been activated (check your email).")
 	}
 
 	return token
