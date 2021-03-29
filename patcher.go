@@ -46,7 +46,7 @@ type VersionFile struct {
 }
 
 func checkCDNStatus() bool {
-	resp, err := http.Head("https://cdn.burningsw.to/version.bin")
+	resp, err := http.Head("https://burningsw.b-cdn.net/version.bin")
 	if err == nil {
 		if resp.StatusCode == 200 {
 			return true
@@ -68,7 +68,7 @@ func fetchVersionFile(local bool) (*VersionFile, error) {
 		return &versionFile, err
 	} else {
 		log.Println("Loading version file from remote cdn.")
-		data, err := getFile("https://cdn.burningsw.to/version.bin")
+		data, err := getFile("https://burningsw.b-cdn.net/version.bin")
 		if err != nil {
 			return nil, err
 		}
@@ -228,7 +228,7 @@ func downloadFiles(toDownload []File, numWorkers int) {
 }
 func worker(jobs <-chan File, wg *sync.WaitGroup) {
 	for j := range jobs {
-		formattedUrl := fmt.Sprintf("https://cdn.burningsw.to/%s", j.Path)
+		formattedUrl := fmt.Sprintf("https://burningsw.b-cdn.net/%s", j.Path)
 		formattedUrl = strings.ReplaceAll(formattedUrl, "\\", "/")
 		force := DefaultForceDownload
 		for {
