@@ -76,7 +76,7 @@ func getLoginInfo() *Config {
 	return config
 }
 
-func fetchLoginToken(client *http.Client, config *Config) string {
+func fetchLoginToken(client *http.Client, config *Config) (string, string) {
 	form := url.Values{}
 	form.Add("username", config.Username)
 	form.Add("password", config.Password)
@@ -110,8 +110,7 @@ func fetchLoginToken(client *http.Client, config *Config) string {
 		log.Panic("Could not read token response", err)
 	}
 	tokenA := strings.Split(string(res), "&")
-	token := tokenA[0]
-	if len(tokenA) != 2 || token == "" {
+	if len(tokenA) != 2 || tokenA[0] == "" {
 		config.Username = ""
 		config.Password = ""
 		config.Save()
@@ -121,8 +120,10 @@ func fetchLoginToken(client *http.Client, config *Config) string {
 		log.Panicf("%s: Login service is offline.\n", resp.StatusCode)
 		//log.Panic("Invalid username or password, or your account has not been activated (check your email).")
 	}
+	username := strings.Split(tokenA[1], "=")[1]
+	token := tokenA[0]
 
-	return token
+	return username, token
 }
 
 func fetchLauncherInfo(client *http.Client) *LauncherInfo {

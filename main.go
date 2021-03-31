@@ -68,9 +68,9 @@ func main() {
 	client := http.Client{Jar: jar}
 
 	log.Println("Logging in")
-	token := fetchLoginToken(&client, config)
+	username, token := fetchLoginToken(&client, config)
 	launcherInfo := fetchLauncherInfo(&client)
 
 	log.Println("Launching BSW...")
-	launch(config.Username, token, launcherInfo.GameServer, launcherInfo.GamePort)
+	launch(username, token, launcherInfo.GameServer, launcherInfo.GamePort)
 }
