@@ -4,7 +4,6 @@ import (
 	"BSWLauncher/util"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"os"
 )
 
@@ -34,5 +33,5 @@ func (conf Config) Save() {
 	}
 	conf.Password = pw
 	file, _ := json.Marshal(conf)
-	_ = ioutil.WriteFile(ConfigFile, file, 0644)
+	_ = os.WriteFile(ConfigFile, file, 0644)
 }

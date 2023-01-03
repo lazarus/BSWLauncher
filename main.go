@@ -40,7 +40,6 @@ func main() {
 	var toDownload []File
 	if err != nil {
 		toDownload = verifyFiles(cdnFile.Files)
-		err = nil
 	} else {
 		log.Println("Diff version file")
 		toDownload = diffVersionFile(cdnFile, localVersionDB)

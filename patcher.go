@@ -7,13 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/dustin/go-humanize"
-	"github.com/klauspost/compress/s2"
-	"github.com/vbauerster/mpb"
-	"github.com/vbauerster/mpb/decor"
-	"golang.org/x/crypto/blake2b"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -21,6 +15,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dustin/go-humanize"
+	"github.com/klauspost/compress/s2"
+	"github.com/vbauerster/mpb"
+	"github.com/vbauerster/mpb/decor"
+	"golang.org/x/crypto/blake2b"
 )
 
 const DefaultForceDownload = false
@@ -180,7 +180,7 @@ func verifyFiles(files []File) []File {
 		}
 
 		lm := time.Unix(file.LastModified, 0)
-		err = os.Chtimes(file.Path, lm, lm)
+		_ = os.Chtimes(file.Path, lm, lm)
 		println("OK.")
 	}
 	if err := localVersionDB.save(); err != nil {
@@ -207,8 +207,8 @@ func downloadFiles(toDownload []File, numWorkers int) {
 		log.Panicln("Restart launcher and contact Austin#0008 if error persists.")
 	}
 
-	progressBarManager = mpb.New()
 	var wg sync.WaitGroup
+	progressBarManager = mpb.New(mpb.WithWaitGroup(&wg))
 	wg.Add(len(toDownload))
 
 	jobs := make(chan File, len(toDownload))
@@ -223,7 +223,6 @@ func downloadFiles(toDownload []File, numWorkers int) {
 
 	defer close(jobs)
 
-	wg.Wait()
 	progressBarManager.Wait()
 }
 func worker(jobs <-chan File, wg *sync.WaitGroup) {
@@ -355,7 +354,7 @@ func downloadFile(file File, url string, wg *sync.WaitGroup, force bool) error {
 	_ = os.Remove(filename + ".tmp")
 
 	lm := time.Unix(file.LastModified, 0)
-	err = os.Chtimes(file.Path, lm, lm)
+	_ = os.Chtimes(file.Path, lm, lm)
 
 	wg.Done()
 	return nil
@@ -367,7 +366,7 @@ func getFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	return body, err
 }
 

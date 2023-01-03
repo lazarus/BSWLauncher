@@ -4,14 +4,15 @@ import (
 	"BSWLauncher/util"
 	"encoding/json"
 	"fmt"
-	"github.com/howeyc/gopass"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/howeyc/gopass"
 )
 
 const ConfigFile string = "launcher_config.json"
@@ -45,7 +46,7 @@ func getLoginInfo() *Config {
 		}
 
 		if len(args) > 0 {
-			password, args = args[0], args[1:]
+			password = args[0] //, args = args[0], args[1:]
 		} else {
 			for password == "" {
 				fmt.Print("Enter your password: ")
@@ -81,7 +82,7 @@ func fetchLoginToken(client *http.Client, config *Config) (string, string) {
 	form.Add("username", config.Username)
 	form.Add("password", config.Password)
 
-	req, err := http.NewRequest("POST", "https://burningsw.to/login", strings.NewReader(form.Encode()))
+	req, err := http.NewRequest("POST", "https://burningsw.com/login", strings.NewReader(form.Encode()))
 	if err != nil {
 		log.Panic("Error creating request", err)
 	}
@@ -94,7 +95,7 @@ func fetchLoginToken(client *http.Client, config *Config) (string, string) {
 	}
 	resp.Body.Close()
 
-	req, err = http.NewRequest("POST", "https://burningsw.to/api/generate_token", nil)
+	req, err = http.NewRequest("POST", "https://burningsw.com/api/generate_token", nil)
 	if err != nil {
 		log.Panic("Error posting to login api", err)
 	}
@@ -105,7 +106,7 @@ func fetchLoginToken(client *http.Client, config *Config) (string, string) {
 	}
 	defer resp.Body.Close()
 
-	res, err := ioutil.ReadAll(resp.Body)
+	res, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Panic("Could not read token response", err)
 	}
@@ -117,7 +118,7 @@ func fetchLoginToken(client *http.Client, config *Config) (string, string) {
 		if len(res) > 0 {
 			log.Panic(string(res))
 		}
-		log.Panicf("%s: Login service is offline.\n", resp.StatusCode)
+		log.Panicf("%d: Login service is offline.\n", resp.StatusCode)
 		//log.Panic("Invalid username or password, or your account has not been activated (check your email).")
 	}
 	username := strings.Split(tokenA[1], "=")[1]
@@ -127,12 +128,12 @@ func fetchLoginToken(client *http.Client, config *Config) (string, string) {
 }
 
 func fetchLauncherInfo(client *http.Client) *LauncherInfo {
-	resp, err := client.Get("https://launcher.burningsw.to/info.json")
+	resp, err := client.Get("https://launcher.burningsw.com/info.json")
 	if err != nil {
 		log.Panic("Could not get launcher info", err)
 	}
 	defer resp.Body.Close()
-	body, readErr := ioutil.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
 		log.Panic("Could not read launcher info", err)
 	}
@@ -147,7 +148,7 @@ func fetchLauncherInfo(client *http.Client) *LauncherInfo {
 }
 
 func launch(username string, token string, server string, port int) {
-	cmd := exec.Command("BurningSW.exe", "HID:"+username, "TOKEN:"+token, "CHCODE:11", "IP:"+server, fmt.Sprintf("PORT:%v", port))
+	cmd := exec.Command("./BurningSW.exe", "HID:"+username, "TOKEN:"+token, "CHCODE:11", "IP:"+server, fmt.Sprintf("PORT:%v", port))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {

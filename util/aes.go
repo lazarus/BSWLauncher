@@ -95,5 +95,5 @@ func Decrypt(encryptedString string) (decryptedString string, err error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s", plaintext), nil
+	return string(plaintext), nil
 }
